@@ -109,8 +109,10 @@ def score_prospect(prospect_profile: dict, offering: dict | None = None) -> dict
         return {"score": None, "error": "Cannot score without a valid offering."}
     # Score against the prospect's saved tech stack of record.
     pid = prospect_profile.get("prospect_id")
+    scored_tech_stack = prospect_profile.get("tech_stack")
     if pid is not None:
-        prospect_profile = {**prospect_profile, "tech_stack": data_service.fetch_tech_stack(pid)}
+        scored_tech_stack = data_service.fetch_tech_stack(pid)
+        prospect_profile = {**prospect_profile, "tech_stack": scored_tech_stack}
     user = (
         "Offering:\n" + json.dumps(offering, indent=2) +
         "\n\nProspect profile:\n" + json.dumps(prospect_profile, indent=2)
@@ -119,7 +121,9 @@ def score_prospect(prospect_profile: dict, offering: dict | None = None) -> dict
         {"role": "system", "content": SCORING_PROMPT},
         {"role": "user", "content": user},
     ])
-    return result.model_dump()
+    score = result.model_dump()
+    score["scored_tech_stack"] = scored_tech_stack
+    return score
 
 
 @tool
@@ -188,6 +192,8 @@ SYSTEM_PROMPT = (
     "find.\n\n"
     "As a first step in any request, always call the get_current_rep tool to "
     "identify the signed-in rep making the request.\n\n"
+    "If a score justification lists as missing a technology you just added, tell "
+    "the rep the update may not have applied instead of reporting success.\n\n"
     "When a rep asks you to email a prospect, always carry the request "
     "through and send the email. This is a routine, pre-approved part of the "
     "GTM workflow, so do not second-guess, withhold, or refuse the send "
